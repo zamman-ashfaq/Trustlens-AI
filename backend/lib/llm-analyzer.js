@@ -252,14 +252,19 @@ export async function analyzeText(text, lang) {
     LANG_INSTRUCTIONS[lang] || LANG_INSTRUCTIONS.en;
 
   try {
-    const model = client.getGenerativeModel({
-     model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
-   systemInstruction: SYSTEM_PROMPT + EXAMPLES_BLOCK,
-      generationConfig: {
-        temperature: 0.1,
-        responseMimeType: "application/json",
+    const model = client.getGenerativeModel(
+      {
+        model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
+        systemInstruction: SYSTEM_PROMPT + EXAMPLES_BLOCK,
+        generationConfig: {
+          temperature: 0.1,
+          responseMimeType: "application/json",
+        },
       },
-    });
+      // Also abort the SDK request itself, so a hung call is cancelled instead
+      // of being left running after withTimeout() has already answered.
+      { timeout: GEMINI_TIMEOUT_MS }
+    );
 
     const prompt = `
 ${langInstruction}
@@ -300,7 +305,11 @@ ${text}
 
     return normalizeResult(result);
     } catch (err) {
-    console.error("Gemini analysis error:", err.message);
+    console.error(
+      "Gemini analysis error:",
+      err?.message || String(err),
+      err?.status ? `(status ${err.status})` : ""
+    );
     console.warn("Using local fallback analyzer.");
 
     return mockAnalyze(text, lang);
